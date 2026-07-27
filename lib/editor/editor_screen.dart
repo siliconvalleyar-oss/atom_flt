@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_code_editor/flutter_code_editor.dart';
+import 'package:highlight/languages/all.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 import '../theme/theme_provider.dart';
 import '../widgets/status_bar.dart';
 import '../widgets/search_bar.dart';
+import '../samples/sample_code.dart';
 import 'editor_controller.dart';
 
 class EditorScreen extends StatefulWidget {
@@ -77,6 +79,27 @@ class _EditorScreenState extends State<EditorScreen> {
     }
   }
 
+  void _loadSampleCpp() {
+    final editor = context.read<EditorController>();
+    editor.codeController.removeListener(_onSelectionChanged);
+    editor.codeController.text = SampleCode.cpp;
+    editor.codeController.language = allLanguages['cpp'] ?? null;
+    editor.codeController.addListener(_onSelectionChanged);
+    editor.newFile();
+    editor.codeController.removeListener(_onSelectionChanged);
+    editor.codeController.text = SampleCode.cpp;
+    editor.codeController.language = allLanguages['cpp'] ?? null;
+    editor.codeController.addListener(_onSelectionChanged);
+  }
+
+  void _loadSampleDart() {
+    final editor = context.read<EditorController>();
+    editor.codeController.removeListener(_onSelectionChanged);
+    editor.codeController.text = SampleCode.dart;
+    editor.codeController.language = allLanguages['dart'] ?? null;
+    editor.codeController.addListener(_onSelectionChanged);
+  }
+
   @override
   void dispose() {
     final editor = context.read<EditorController>();
@@ -90,17 +113,19 @@ class _EditorScreenState extends State<EditorScreen> {
     final isDark = context.watch<ThemeProvider>().isDarkMode;
 
     return Scaffold(
-      body: Column(
-        children: [
-          _buildMenuBar(context, editor, isDark),
-          if (_showSearch)
-            SearchBarWidget(
-              codeController: editor.codeController,
-              onClose: () => setState(() => _showSearch = false),
-            ),
-          Expanded(child: _buildEditor(context, editor, isDark)),
-          const StatusBar(),
-        ],
+      body: SafeArea(
+        child: Column(
+          children: [
+            _buildMenuBar(context, editor, isDark),
+            if (_showSearch)
+              SearchBarWidget(
+                codeController: editor.codeController,
+                onClose: () => setState(() => _showSearch = false),
+              ),
+            Expanded(child: _buildEditor(context, editor, isDark)),
+            const StatusBar(),
+          ],
+        ),
       ),
     );
   }
@@ -108,7 +133,7 @@ class _EditorScreenState extends State<EditorScreen> {
   Widget _buildMenuBar(
       BuildContext context, EditorController editor, bool isDark) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 4),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF252525) : const Color(0xFFF0F0F0),
         border: Border(
@@ -145,6 +170,63 @@ class _EditorScreenState extends State<EditorScreen> {
                   ? const Color(0xFF999999)
                   : const Color(0xFF666666),
             ),
+          ),
+          const SizedBox(width: 4),
+          PopupMenuButton<_OverflowItem>(
+            onSelected: (item) => item.action(),
+            icon: Icon(
+              Icons.more_vert,
+              size: 20,
+              color: isDark
+                  ? const Color(0xFF999999)
+                  : const Color(0xFF666666),
+            ),
+            itemBuilder: (_) => [
+              const PopupMenuItem<_OverflowItem>(
+                value: _OverflowItem('Explorar...', null),
+                child: Row(
+                  children: [
+                    Icon(Icons.folder_open, size: 18),
+                    SizedBox(width: 12),
+                    Text('Explorar...'),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
+              const PopupMenuItem<_OverflowItem>(
+                value: _OverflowItem('Cargar ejemplo C++', null),
+                child: Row(
+                  children: [
+                    Icon(Icons.code, size: 18),
+                    SizedBox(width: 12),
+                    Text('Cargar ejemplo C++'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem<_OverflowItem>(
+                value: _OverflowItem('Cargar ejemplo Dart', null),
+                child: Row(
+                  children: [
+                    Icon(Icons.code, size: 18),
+                    SizedBox(width: 12),
+                    Text('Cargar ejemplo Dart'),
+                  ],
+                ),
+              ),
+            ],
+            onSelected: (item) {
+              switch (item.title) {
+                case 'Explorar...':
+                  _openFile();
+                  break;
+                case 'Cargar ejemplo C++':
+                  _loadSampleCpp();
+                  break;
+                case 'Cargar ejemplo Dart':
+                  _loadSampleDart();
+                  break;
+              }
+            },
           ),
         ],
       ),
@@ -236,6 +318,12 @@ class _MenuItem {
   final String shortcut;
   final VoidCallback action;
   _MenuItem(this.title, this.shortcut, this.action);
+}
+
+class _OverflowItem {
+  final String title;
+  final VoidCallback? action;
+  const _OverflowItem(this.title, this.action);
 }
 
 Map<String, TextStyle> get _oneDarkStyles => {
