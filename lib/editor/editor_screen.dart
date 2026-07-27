@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_code_editor/flutter_code_editor.dart';
 import 'package:highlight/languages/all.dart';
@@ -57,6 +58,51 @@ class _EditorScreenState extends State<EditorScreen> {
       await context.read<EditorController>().openFile(
             result.files.single.path!,
           );
+    }
+  }
+
+  Future<void> _openFolder() async {
+    final dir = await FilePicker.platform.getDirectoryPath();
+    if (dir == null || !mounted) return;
+
+    final directory = Directory(dir);
+    if (!await directory.exists()) return;
+
+    final files = await directory
+        .list()
+        .where((e) => e is File)
+        .map((e) => e as File)
+        .toList();
+
+    if (files.isEmpty || !mounted) return;
+
+    final selected = await showDialog<File>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: Text('Files in ${dir.split('/').last}'),
+        children: [
+          SizedBox(
+            height: 400,
+            width: 300,
+            child: ListView.builder(
+              itemCount: files.length,
+              itemBuilder: (_, i) => ListTile(
+                dense: true,
+                leading: const Icon(Icons.insert_drive_file, size: 18),
+                title: Text(
+                  files[i].path.split('/').last,
+                  style: const TextStyle(fontSize: 13),
+                ),
+                onTap: () => Navigator.pop(ctx, files[i]),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (selected != null && mounted) {
+      await context.read<EditorController>().openFile(selected.path);
     }
   }
 
@@ -172,12 +218,22 @@ class _EditorScreenState extends State<EditorScreen> {
             ),
             itemBuilder: (_) => [
               const PopupMenuItem<_OverflowItem>(
-                value: _OverflowItem('Explorar...', null),
+                value: _OverflowItem('Abrir archivo...', null),
+                child: Row(
+                  children: [
+                    Icon(Icons.insert_drive_file, size: 18),
+                    SizedBox(width: 12),
+                    Text('Abrir archivo...'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem<_OverflowItem>(
+                value: _OverflowItem('Abrir carpeta...', null),
                 child: Row(
                   children: [
                     Icon(Icons.folder_open, size: 18),
                     SizedBox(width: 12),
-                    Text('Explorar...'),
+                    Text('Abrir carpeta...'),
                   ],
                 ),
               ),
@@ -205,8 +261,11 @@ class _EditorScreenState extends State<EditorScreen> {
             ],
             onSelected: (item) {
               switch (item.title) {
-                case 'Explorar...':
+                case 'Abrir archivo...':
                   _openFile();
+                  break;
+                case 'Abrir carpeta...':
+                  _openFolder();
                   break;
                 case 'Cargar ejemplo C++':
                   _loadSampleCpp();
@@ -269,6 +328,8 @@ class _EditorScreenState extends State<EditorScreen> {
         styles: isDark ? _oneDarkStyles : _githubLightStyles,
       ),
       child: CodeField(
+        expands: true,
+        wrap: true,
         controller: editor.codeController,
         textStyle: TextStyle(
           fontFamily: 'monospace',
