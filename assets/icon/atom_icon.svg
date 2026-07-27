@@ -1,14 +1,17 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
-  <!-- Órbita 1 -->
-  <ellipse cx="256" cy="256" rx="200" ry="70" stroke="#61AFEF" stroke-width="6" fill="none" opacity="0.7" transform="rotate(-30 256 256)"/>
-  <!-- Órbita 2 -->
-  <ellipse cx="256" cy="256" rx="200" ry="70" stroke="#C678DD" stroke-width="6" fill="none" opacity="0.7" transform="rotate(30 256 256)"/>
-  <!-- Órbita 3 (horizontal) -->
-  <ellipse cx="256" cy="256" rx="200" ry="70" stroke="#98C379" stroke-width="6" fill="none" opacity="0.7" transform="rotate(90 256 256)"/>
-  <!-- Núcleo -->
-  <circle cx="256" cy="256" r="24" fill="#E5C07B"/>
-  <!-- Electrones -->
-  <circle cx="185" cy="160" r="12" fill="#61AFEF"/>
-  <circle cx="356" cy="316" r="12" fill="#C678DD"/>
-  <circle cx="256" cy="106" r="12" fill="#98C379"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#61AFEF"/>
+      <stop offset="100%" stop-color="#C678DD"/>
+    </linearGradient>
+    <linearGradient id="g2" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#98C379"/>
+      <stop offset="100%" stop-color="#E5C07B"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="256" cy="256" rx="180" ry="65" stroke="url(#g1)" stroke-width="4" fill="none" transform="rotate(-25 256 256)"/>
+  <ellipse cx="256" cy="256" rx="180" ry="65" stroke="url(#g2)" stroke-width="4" fill="none" transform="rotate(115 256 256)"/>
+  <ellipse cx="256" cy="256" rx="180" ry="65" stroke="#E06C75" stroke-width="4" fill="none" transform="rotate(245 256 256)" opacity="0.6"/>
+  <circle cx="256" cy="256" r="16" fill="#ABB2BF"/>
+  <circle cx="256" cy="256" r="6" fill="#282C34"/>
 </svg>
