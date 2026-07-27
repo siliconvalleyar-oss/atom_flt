@@ -1,10 +1,11 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_code_editor/flutter_code_editor.dart';
 import 'package:highlight/languages/all.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 import '../theme/theme_provider.dart';
+import '../services/file_browser_service.dart';
+import '../widgets/file_browser.dart';
 import '../widgets/status_bar.dart';
 import '../widgets/search_bar.dart';
 import '../samples/sample_code.dart';
@@ -19,6 +20,9 @@ class EditorScreen extends StatefulWidget {
 
 class _EditorScreenState extends State<EditorScreen> {
   bool _showSearch = false;
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  final FileBrowserService _fileBrowserService = FileBrowserService();
+  String? _rootTreeUri;
 
   @override
   void initState() {
@@ -65,45 +69,8 @@ class _EditorScreenState extends State<EditorScreen> {
     final dir = await FilePicker.platform.getDirectoryPath();
     if (dir == null || !mounted) return;
 
-    final directory = Directory(dir);
-    if (!await directory.exists()) return;
-
-    final files = await directory
-        .list()
-        .where((e) => e is File)
-        .map((e) => e as File)
-        .toList();
-
-    if (files.isEmpty || !mounted) return;
-
-    final selected = await showDialog<File>(
-      context: context,
-      builder: (ctx) => SimpleDialog(
-        title: Text('Files in ${dir.split('/').last}'),
-        children: [
-          SizedBox(
-            height: 400,
-            width: 300,
-            child: ListView.builder(
-              itemCount: files.length,
-              itemBuilder: (_, i) => ListTile(
-                dense: true,
-                leading: const Icon(Icons.insert_drive_file, size: 18),
-                title: Text(
-                  files[i].path.split('/').last,
-                  style: const TextStyle(fontSize: 13),
-                ),
-                onTap: () => Navigator.pop(ctx, files[i]),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-
-    if (selected != null && mounted) {
-      await context.read<EditorController>().openFile(selected.path);
-    }
+    setState(() => _rootTreeUri = dir);
+    _scaffoldKey.currentState?.openDrawer();
   }
 
   Future<void> _saveFile() async {
@@ -136,6 +103,11 @@ class _EditorScreenState extends State<EditorScreen> {
   void _loadSampleCpp() => _loadSample(SampleCode.cpp, 'cpp', 'sample.cpp');
   void _loadSampleDart() => _loadSample(SampleCode.dart, 'dart', 'sample.dart');
 
+  void _selectFileFromBrowser(String uri) {
+    Navigator.pop(context);
+    context.read<EditorController>().openFile(uri);
+  }
+
   @override
   void dispose() {
     final editor = context.read<EditorController>();
@@ -148,7 +120,28 @@ class _EditorScreenState extends State<EditorScreen> {
     final editor = context.watch<EditorController>();
     final isDark = context.watch<ThemeProvider>().isDarkMode;
 
+    final drawerWidth = MediaQuery.of(context).size.width * 0.75;
+
     return Scaffold(
+      key: _scaffoldKey,
+      drawer: Drawer(
+        width: drawerWidth.clamp(240.0, 360.0),
+        child: SafeArea(
+            child: _rootTreeUri != null
+                ? FileBrowser(
+                    service: _fileBrowserService,
+                    rootTreeUri: _rootTreeUri,
+                    onFileSelected: _selectFileFromBrowser,
+                  )
+                : EmptyFileBrowser(
+                    isDark: isDark,
+                    onSelectFolder: () {
+                      Navigator.pop(context);
+                      _openFolder();
+                    },
+                  ),
+          ),
+      ),
       body: SafeArea(
         child: Column(
           children: [
@@ -180,6 +173,19 @@ class _EditorScreenState extends State<EditorScreen> {
       ),
       child: Row(
         children: [
+          GestureDetector(
+            onTap: () => _scaffoldKey.currentState?.openDrawer(),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              child: Icon(
+                Icons.folder_outlined,
+                size: 20,
+                color: isDark
+                    ? const Color(0xFFD4D4D4)
+                    : const Color(0xFF1E1E1E),
+              ),
+            ),
+          ),
           _menuButton('File', isDark, [
             _MenuItem('New', 'Ctrl+N',
                 () => context.read<EditorController>().newFile()),
@@ -194,6 +200,8 @@ class _EditorScreenState extends State<EditorScreen> {
                 () => context.read<EditorController>().redo()),
           ]),
           _menuButton('View', isDark, [
+            _MenuItem('File Browser', 'Ctrl+B',
+                () => _scaffoldKey.currentState?.openDrawer()),
             _MenuItem('Toggle Theme', 'Ctrl+T',
                 () => context.read<ThemeProvider>().toggleTheme()),
           ]),
