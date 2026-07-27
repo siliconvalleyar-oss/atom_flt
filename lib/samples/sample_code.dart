@@ -1,7 +1,7 @@
 class SampleCode {
   SampleCode._();
 
-  static const cpp = '''#include <iostream>
+  static const cpp = r'''#include <iostream>
 #include <vector>
 #include <memory>
 #include <algorithm>
@@ -26,7 +26,7 @@ public:
 
     virtual double area() const = 0;
     virtual void draw() const {
-        std::cout << "Drawing " << name << "\\n";
+        std::cout << "Drawing " << name << "\n";
     }
 
     std::string getName() const { return name; }
@@ -48,9 +48,9 @@ public:
     }
 
     void draw() const override {
-        std::cout << "  ( )\\n";
-        std::cout << " (   ) radius=" << radius << "\\n";
-        std::cout << "  ( )\\n";
+        std::cout << "  ( )\n";
+        std::cout << " (   ) radius=" << radius << "\n";
+        std::cout << "  ( )\n";
     }
 };
 
@@ -64,9 +64,9 @@ public:
     }
 
     void draw() const override {
-        std::cout << " +------+\\n";
-        std::cout << " |      | w=" << w << " h=" << h << "\\n";
-        std::cout << " +------+\\n";
+        std::cout << " +------+\n";
+        std::cout << " |      | w=" << w << " h=" << h << "\n";
+        std::cout << " +------+\n";
     }
 };
 
@@ -146,7 +146,6 @@ auto createResource() {
 void demonstrateMove() {
     auto res = createResource();
     auto moved = std::move(res);
-    // res is now nullptr
 }
 
 // ============================================================
@@ -197,7 +196,7 @@ void parallelWork() {
     }
 
     for (auto& t : threads) t.join();
-    std::cout << "Final count: " << counter.get() << "\\n";
+    std::cout << "Final count: " << counter.get() << "\n";
 }
 
 // ============================================================
@@ -214,13 +213,13 @@ constexpr auto compileTimeFactorial = factorial(10);
 // ============================================================
 template <typename... Args>
 auto sumAll(Args... args) {
-    return (args + ...);  // Fold expression (C++17)
+    return (args + ...);
 }
 
 template <typename... Args>
 void printAll(Args... args) {
     ((std::cout << args << " "), ...);
-    std::cout << "\\n";
+    std::cout << "\n";
 }
 
 // ============================================================
@@ -276,47 +275,42 @@ public:
 // 13. MAIN DEMO
 // ============================================================
 int main() {
-    std::cout << "=== atom_flt C++ Demo ===\\n\\n";
+    std::cout << "=== atom_flt C++ Demo ===\n\n";
 
-    // Shapes
     std::vector<std::unique_ptr<Shape>> shapes;
     shapes.push_back(std::make_unique<Circle>(5.0));
     shapes.push_back(std::make_unique<Rectangle>(3.0, 4.0));
 
     for (const auto& s : shapes) {
-        std::cout << s->getName() << " area = " << s->area() << "\\n";
+        std::cout << s->getName() << " area = " << s->area() << "\n";
         s->draw();
-        std::cout << "\\n";
+        std::cout << "\n";
     }
 
-    std::cout << "Total shapes: " << Shape::getTotalShapes() << "\\n\\n";
+    std::cout << "Total shapes: " << Shape::getTotalShapes() << "\n\n";
 
-    // Templates
     Box<int> intBox(42);
     Box<double> dblBox(3.14);
     std::cout << "intBox + dblBox = "
-              << (intBox + dblBox).get() << "\\n\\n";
+              << (intBox + dblBox).get() << "\n\n";
 
-    // Lambdas & algorithms
     std::vector<int> data = {1, 2, 3, 4, 5, 6, 7, 8};
     auto processed = processVector(data);
     std::cout << "Processed: ";
     for (int x : processed) std::cout << x << " ";
-    std::cout << "\\n\\n";
+    std::cout << "\n\n";
 
-    // Variadic
-    std::cout << "sumAll: " << sumAll(1, 2, 3, 4, 5) << "\\n";
+    std::cout << "sumAll: " << sumAll(1, 2, 3, 4, 5) << "\n";
     printAll("hello", 42, 3.14, "world");
 
-    // Compile-time
-    std::cout << "10! = " << compileTimeFactorial << "\\n\\n";
+    std::cout << "10! = " << compileTimeFactorial << "\n\n";
 
     parallelWork();
 
     return 0;
 }''';
 
-  static const dart = '''import 'dart:async';
+  static const dart = r'''import 'dart:async';
 import 'dart:collection';
 import 'dart:io';
 import 'dart:math' show Random;
@@ -330,7 +324,7 @@ mixin JsonSerializable {
 
 mixin Loggable {
   void log(String message) {
-    print('[LOG] $message');
+    print('[LOG] ' + message);
   }
 }
 
@@ -363,7 +357,7 @@ class User with JsonSerializable, Loggable {
 class Result<T> {
   final T? data;
   final String? error;
-  final bool get isSuccess => error == null;
+  bool get isSuccess => error == null;
 
   Result.success(this.data) : error = null;
   Result.failure(this.error) : data = null;
@@ -397,7 +391,7 @@ class CollectionDemo {
     final even = list.where((e) => e.isEven).toList();
 
     final result = list.fold<int>(0, (sum, e) => sum + e);
-    print('Sum: $result');
+    print('Sum: ' + result.toString());
   }
 }
 
@@ -430,8 +424,8 @@ class Error extends NetworkState {
 
 String handleState(NetworkState state) => switch (state) {
       Loading() => 'Loading...',
-      Success(data: var d) => 'Success: $d',
-      Error(message: var m) => 'Error: $m',
+      Success(data: var d) => 'Success: ' + d,
+      Error(message: var m) => 'Error: ' + m,
     };
 
 // ============================================================
@@ -441,7 +435,7 @@ String handleState(NetworkState state) => switch (state) {
 
 void recordDestructuring() {
   final (name, age) = createPerson();
-  print('$name is $age years old');
+  print(name + ' is ' + age.toString() + ' years old');
 }
 
 // ============================================================
@@ -486,39 +480,31 @@ Stream<String> readFileLines(String path) async* {
 // 11. MAIN
 // ============================================================
 void main() async {
-  print('=== atom_flt Dart Demo ===\\n');
+  print('=== atom_flt Dart Demo ===\n');
 
-  // User with mixins
   final user = User(id: 1, name: 'Alice', email: 'alice@example.com');
-  user.log('User created: ${user.toJson()}');
+  user.log('User created: ' + user.toJson().toString());
 
-  // Generics
   final result = Result<int>.success(42);
   if (result.isSuccess) {
-    print('Result: ${result.data}');
+    print('Result: ' + result.data.toString());
   }
 
-  // Collections
   CollectionDemo.demonstrate();
 
-  // Extension methods
   print('hello world'.capitalize());
   print('42'.toIntOrNull());
 
-  // Sealed class
   print(handleState(Success('done!')));
 
-  // Records
   recordDestructuring();
 
-  // Streams
   await for (final n in numberStream(3)) {
-    print('Stream: $n');
+    print('Stream: ' + n.toString());
   }
 
-  // Event bus
   final bus = EventBus();
-  bus.on('user.login', (data) => print('Login: ${data['user']}'));
+  bus.on('user.login', (data) => print('Login: ' + data['user'].toString()));
   bus.emit('user.login', {'user': 'Alice'});
 }''';
 }

@@ -79,26 +79,16 @@ class _EditorScreenState extends State<EditorScreen> {
     }
   }
 
-  void _loadSampleCpp() {
+  void _loadSample(String code, String lang, String filename) {
     final editor = context.read<EditorController>();
     editor.codeController.removeListener(_onSelectionChanged);
-    editor.codeController.text = SampleCode.cpp;
-    editor.codeController.language = allLanguages['cpp'] ?? null;
-    editor.codeController.addListener(_onSelectionChanged);
-    editor.newFile();
-    editor.codeController.removeListener(_onSelectionChanged);
-    editor.codeController.text = SampleCode.cpp;
-    editor.codeController.language = allLanguages['cpp'] ?? null;
+    editor.codeController.text = code;
+    editor.codeController.language = allLanguages[lang];
     editor.codeController.addListener(_onSelectionChanged);
   }
 
-  void _loadSampleDart() {
-    final editor = context.read<EditorController>();
-    editor.codeController.removeListener(_onSelectionChanged);
-    editor.codeController.text = SampleCode.dart;
-    editor.codeController.language = allLanguages['dart'] ?? null;
-    editor.codeController.addListener(_onSelectionChanged);
-  }
+  void _loadSampleCpp() => _loadSample(SampleCode.cpp, 'cpp', 'sample.cpp');
+  void _loadSampleDart() => _loadSample(SampleCode.dart, 'dart', 'sample.dart');
 
   @override
   void dispose() {
@@ -173,7 +163,6 @@ class _EditorScreenState extends State<EditorScreen> {
           ),
           const SizedBox(width: 4),
           PopupMenuButton<_OverflowItem>(
-            onSelected: (item) => item.action(),
             icon: Icon(
               Icons.more_vert,
               size: 20,

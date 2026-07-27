@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../editor/editor_controller.dart';
 import '../theme/theme_provider.dart';
+import '../services/version_service.dart';
 
 class StatusBar extends StatelessWidget {
   const StatusBar({super.key});
@@ -60,6 +61,16 @@ class StatusBar extends StatelessWidget {
               fontSize: 12,
               color: colors.onSurface.withValues(alpha: 0.6),
               fontFamily: 'monospace',
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            'v${VersionService.version}',
+            style: TextStyle(
+              fontSize: 12,
+              color: colors.primary.withValues(alpha: 0.8),
+              fontFamily: 'monospace',
+              fontWeight: FontWeight.w500,
             ),
           ),
           const SizedBox(width: 8),
