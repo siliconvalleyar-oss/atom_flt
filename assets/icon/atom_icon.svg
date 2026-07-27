@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <!-- Órbita 1 -->
+  <ellipse cx="256" cy="256" rx="200" ry="70" stroke="#61AFEF" stroke-width="6" fill="none" opacity="0.7" transform="rotate(-30 256 256)"/>
+  <!-- Órbita 2 -->
+  <ellipse cx="256" cy="256" rx="200" ry="70" stroke="#C678DD" stroke-width="6" fill="none" opacity="0.7" transform="rotate(30 256 256)"/>
+  <!-- Órbita 3 (horizontal) -->
+  <ellipse cx="256" cy="256" rx="200" ry="70" stroke="#98C379" stroke-width="6" fill="none" opacity="0.7" transform="rotate(90 256 256)"/>
+  <!-- Núcleo -->
+  <circle cx="256" cy="256" r="24" fill="#E5C07B"/>
+  <!-- Electrones -->
+  <circle cx="185" cy="160" r="12" fill="#61AFEF"/>
+  <circle cx="356" cy="316" r="12" fill="#C678DD"/>
+  <circle cx="256" cy="106" r="12" fill="#98C379"/>
+</svg>
