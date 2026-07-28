@@ -329,7 +329,7 @@ class _EditorScreenState extends State<EditorScreen> {
         wrap: false,
         background: isDark ? const Color(0xFF1E1E1E) : Colors.white,
         gutterStyle: GutterStyle(
-          width: 48,
+          width: 80,
           showLineNumbers: true,
           showErrors: false,
           showFoldingHandles: false,
@@ -337,27 +337,20 @@ class _EditorScreenState extends State<EditorScreen> {
           textStyle: TextStyle(
             fontFamily: 'monospace',
             fontSize: 14,
+            height: 1.5,
             color: fgColor.withOpacity(0.3),
           ),
         ),
         textStyle: TextStyle(
           fontFamily: 'monospace',
           fontSize: 14,
+          height: 1.5,
           color: fgColor,
           fontWeight: FontWeight.w400,
         ),
         cursorColor: const Color(0xFF007ACC),
         onChanged: (value) {
         },
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        decoration: BoxDecoration(
-          border: Border(
-            right: BorderSide(
-              color: fgColor.withOpacity(0.1),
-              width: 1,
-            ),
-          ),
-        ),
       ),
     );
   }
