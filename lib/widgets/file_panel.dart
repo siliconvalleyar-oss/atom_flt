@@ -226,12 +226,19 @@ class _FilePanelState extends State<FilePanel> {
             child: Row(
               children: [
                 if (_service.canGoUp)
-                  GestureDetector(
+                  InkWell(
                     onTap: _goUp,
-                    child: Icon(Icons.arrow_back, size: 14, color: dim),
+                    borderRadius: BorderRadius.circular(4),
+                    child: Padding(
+                      padding: const EdgeInsets.all(6),
+                      child: Icon(Icons.arrow_back, size: 14, color: dim),
+                    ),
                   )
                 else
-                  Icon(Icons.folder, size: 14, color: dim),
+                  Padding(
+                    padding: const EdgeInsets.all(6),
+                    child: Icon(Icons.folder, size: 14, color: dim),
+                  ),
                 const SizedBox(width: 4),
                 Expanded(
                   child: Text(

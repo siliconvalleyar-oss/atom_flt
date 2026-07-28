@@ -348,10 +348,8 @@ class _EditorScreenState extends State<EditorScreen> {
         ),
         cursorColor: const Color(0xFF007ACC),
         onChanged: (value) {
-          _editor.code = value;
-          _updateCursorInfo();
         },
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
         decoration: BoxDecoration(
           border: Border(
             right: BorderSide(

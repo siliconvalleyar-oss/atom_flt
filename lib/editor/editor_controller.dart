@@ -38,7 +38,10 @@ class EditorController extends ChangeNotifier {
   bool get canUndo => _undoCount > 0;
   bool get canRedo => _redoCount > 0;
 
+  bool _suppressNotifications = false;
+
   void _onCodeChanged() {
+    if (_suppressNotifications) return;
     if (!_isModified) {
       _isModified = true;
       notifyListeners();
@@ -52,10 +55,10 @@ class EditorController extends ChangeNotifier {
   }
 
   void newFile() {
-    codeController.removeListener(_onCodeChanged);
+    _suppressNotifications = true;
     codeController.text = '';
+    _suppressNotifications = false;
     codeController.language = null;
-    codeController.addListener(_onCodeChanged);
     _filePath = null;
     _fileUri = null;
     _fileName = 'Untitled';
@@ -68,9 +71,10 @@ class EditorController extends ChangeNotifier {
 
   Future<void> openFile({required String uri, String? filePath}) async {
     final content = await _fileService.readFile(uri);
-    codeController.removeListener(_onCodeChanged);
+    _suppressNotifications = true;
     codeController.text = content;
-    codeController.addListener(_onCodeChanged);
+    _suppressNotifications = false;
+    codeController.selection = const TextSelection.collapsed(offset: 0);
     _filePath = filePath ?? uri;
     _fileUri = uri.startsWith('content://') ? uri : null;
     _fileName = _fileService.getFileName(filePath ?? uri);
