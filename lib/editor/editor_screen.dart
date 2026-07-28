@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_code_editor/flutter_code_editor.dart';
 import '../services/file_service.dart';
 import '../services/file_browser_service.dart';
 import '../services/config_service.dart';
@@ -20,7 +21,6 @@ class _EditorScreenState extends State<EditorScreen> {
   final TextEditingController _searchController = TextEditingController();
   final FileService _fileService = FileService();
   final FileBrowserService _browserService = FileBrowserService();
-  final ScrollController _lineScrollController = ScrollController();
   bool _showFilePanel = true;
   bool _isSearchVisible = false;
   int _currentLine = 1;
@@ -44,7 +44,6 @@ class _EditorScreenState extends State<EditorScreen> {
   void dispose() {
     _editor.removeListener(_onEditorUpdate);
     _searchController.dispose();
-    _lineScrollController.dispose();
     super.dispose();
   }
 
@@ -324,87 +323,43 @@ class _EditorScreenState extends State<EditorScreen> {
           }
         }
       },
-      child: Column(
-        children: [
-          Expanded(
-            child: Container(
-              color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-              child: NotificationListener<ScrollNotification>(
-                onNotification: (notification) {
-                  if (_lineScrollController.hasClients) {
-                    _lineScrollController.jumpTo(notification.metrics.pixels);
-                  }
-                  return false;
-                },
-                child: Row(
-                  children: [
-                    _buildLineNumbers(fgColor),
-                    Expanded(
-                      child: TextField(
-                        controller: _editor.codeController,
-                        onChanged: (value) {
-                          _editor.code = value;
-                          _updateCursorInfo();
-                        },
-                        onTap: _updateCursorInfo,
-                        maxLines: null,
-                        expands: true,
-                        textAlignVertical: TextAlignVertical.top,
-                        keyboardType: TextInputType.multiline,
-                        style: TextStyle(
-                          fontFamily: 'monospace',
-                          fontSize: 14,
-                          color: fgColor,
-                          fontWeight: FontWeight.w400,
-                        ),
-                        decoration: InputDecoration(
-                          border: InputBorder.none,
-                          hintText: 'Escribe tu código aquí...',
-                          contentPadding: const EdgeInsets.all(16),
-                          hintStyle: TextStyle(
-                            color: isDark ? Colors.white24 : Colors.black12,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLineNumbers(Color fgColor) {
-    final lineCount = _editor.code.split('\n').length;
-    return Container(
-      width: 48,
-      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
-      decoration: BoxDecoration(
-        border: Border(
-          right: BorderSide(
-            color: fgColor.withOpacity(0.1),
-            width: 1,
+      child: CodeField(
+        controller: _editor.codeController,
+        expands: true,
+        wrap: false,
+        background: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+        gutterStyle: GutterStyle(
+          width: 48,
+          showLineNumbers: true,
+          showErrors: false,
+          showFoldingHandles: false,
+          margin: 8,
+          textStyle: TextStyle(
+            fontFamily: 'monospace',
+            fontSize: 14,
+            color: fgColor.withOpacity(0.3),
           ),
         ),
-      ),
-      child: ListView.builder(
-        controller: _lineScrollController,
-        physics: const NeverScrollableScrollPhysics(),
-        itemCount: lineCount,
-        itemBuilder: (context, index) {
-          return Text(
-            '${index + 1}',
-            style: TextStyle(
-              fontFamily: 'monospace',
-              fontSize: 14,
-              color: fgColor.withOpacity(0.3),
-            ),
-            textAlign: TextAlign.right,
-          );
+        textStyle: TextStyle(
+          fontFamily: 'monospace',
+          fontSize: 14,
+          color: fgColor,
+          fontWeight: FontWeight.w400,
+        ),
+        cursorColor: const Color(0xFF007ACC),
+        onChanged: (value) {
+          _editor.code = value;
+          _updateCursorInfo();
         },
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          border: Border(
+            right: BorderSide(
+              color: fgColor.withOpacity(0.1),
+              width: 1,
+            ),
+          ),
+        ),
       ),
     );
   }
