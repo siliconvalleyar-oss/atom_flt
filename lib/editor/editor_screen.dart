@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/file_service.dart';
+import '../services/file_browser_service.dart';
 import '../services/config_service.dart';
 import '../widgets/file_panel.dart';
 import '../widgets/config_screen.dart';
@@ -18,6 +19,7 @@ class _EditorScreenState extends State<EditorScreen> {
   final EditorController _editor = EditorController();
   final TextEditingController _searchController = TextEditingController();
   final FileService _fileService = FileService();
+  final FileBrowserService _browserService = FileBrowserService();
   bool _showFilePanel = true;
   bool _isSearchVisible = false;
   int _currentLine = 1;
@@ -29,7 +31,19 @@ class _EditorScreenState extends State<EditorScreen> {
   @override
   void initState() {
     super.initState();
+    _editor.addListener(_onEditorUpdate);
     _loadConfig();
+  }
+
+  void _onEditorUpdate() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _editor.removeListener(_onEditorUpdate);
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadConfig() async {
@@ -195,22 +209,29 @@ class _EditorScreenState extends State<EditorScreen> {
   }
 
   Widget _buildStatusBar(Color fgColor) {
+    final displayPath = _editor.fileUri != null
+        ? _browserService.getDisplayPath(_editor.fileUri!)
+        : (_editor.currentFilePath ?? 'Sin archivo');
     return Container(
       color: const Color(0xFF007ACC),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: Row(
         children: [
-          Text(
-            _editor.currentFilePath ?? 'Sin archivo',
-            style: TextStyle(color: Colors.white, fontSize: 12),
+          Expanded(
+            child: Text(
+              displayPath,
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+              style: const TextStyle(color: Colors.white, fontSize: 12),
+            ),
           ),
-          const Spacer(),
+          const SizedBox(width: 8),
           Text(
             'Ln ${_currentLine}, Col ${_currentCol}',
-            style: TextStyle(color: Colors.white, fontSize: 12),
+            style: const TextStyle(color: Colors.white, fontSize: 12),
           ),
           const SizedBox(width: 16),
-          Text(
+          const Text(
             'UTF-8',
             style: TextStyle(color: Colors.white, fontSize: 12),
           ),
@@ -303,7 +324,6 @@ class _EditorScreenState extends State<EditorScreen> {
       },
       child: Column(
         children: [
-          if (_isSearchVisible) _buildSearchField(isDark, fgColor),
           Expanded(
             child: Container(
               color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
@@ -393,57 +413,65 @@ class _EditorScreenState extends State<EditorScreen> {
           const SizedBox(width: 8),
           Text(
             'atom',
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.bold,
-              color: const Color(0xFF007ACC),
+              color: Color(0xFF007ACC),
             ),
           ),
-          const SizedBox(width: 16),
-          _buildMenuItem('Archivo', [
-            PopupMenuItem(
-              child: _menuItemContent(Icons.add, 'Nuevo', 'Ctrl+N'),
-              onTap: _newFile,
-            ),
-            PopupMenuItem(
-              child: _menuItemContent(Icons.open_in_new, 'Abrir...', 'Ctrl+O'),
-              onTap: _openFile,
-            ),
-            const PopupMenuDivider(),
-            PopupMenuItem(
-              child: _menuItemContent(Icons.save, 'Guardar', 'Ctrl+S'),
-              onTap: _saveFile,
-            ),
-            PopupMenuItem(
-              child: _menuItemContent(Icons.save_as, 'Guardar como...', 'Ctrl+Shift+S'),
-              onTap: _saveFileAs,
-            ),
-          ]),
-          _buildMenuItem('Edición', [
-            PopupMenuItem(
-              child: _menuItemContent(Icons.search, 'Buscar', 'Ctrl+F'),
-              onTap: () {
-                setState(() => _isSearchVisible = !_isSearchVisible);
-              },
-            ),
-            PopupMenuItem(
-              child: _menuItemContent(Icons.find_replace, 'Reemplazar'),
-              onTap: () {},
-            ),
-          ]),
-          _buildMenuItem('Ver', [
-            PopupMenuItem(
-              child: _menuItemContent(
-                _showFilePanel ? Icons.check_box : Icons.check_box_outline_blank,
-                'Panel de archivos',
-                'Ctrl+B',
+          const SizedBox(width: 8),
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _buildMenuItem('Archivo', [
+                    PopupMenuItem(
+                      child: _menuItemContent(Icons.add, 'Nuevo', 'Ctrl+N'),
+                      onTap: _newFile,
+                    ),
+                    PopupMenuItem(
+                      child: _menuItemContent(Icons.open_in_new, 'Abrir...', 'Ctrl+O'),
+                      onTap: _openFile,
+                    ),
+                    const PopupMenuDivider(),
+                    PopupMenuItem(
+                      child: _menuItemContent(Icons.save, 'Guardar', 'Ctrl+S'),
+                      onTap: _saveFile,
+                    ),
+                    PopupMenuItem(
+                      child: _menuItemContent(Icons.save_as, 'Guardar como...', 'Ctrl+Shift+S'),
+                      onTap: _saveFileAs,
+                    ),
+                  ]),
+                  _buildMenuItem('Edición', [
+                    PopupMenuItem(
+                      child: _menuItemContent(Icons.search, 'Buscar', 'Ctrl+F'),
+                      onTap: () {
+                        setState(() => _isSearchVisible = !_isSearchVisible);
+                      },
+                    ),
+                    PopupMenuItem(
+                      child: _menuItemContent(Icons.find_replace, 'Reemplazar'),
+                      onTap: () {},
+                    ),
+                  ]),
+                  _buildMenuItem('Ver', [
+                    PopupMenuItem(
+                      child: _menuItemContent(
+                        _showFilePanel ? Icons.check_box : Icons.check_box_outline_blank,
+                        'Panel de archivos',
+                        'Ctrl+B',
+                      ),
+                      onTap: () {
+                        setState(() => _showFilePanel = !_showFilePanel);
+                      },
+                    ),
+                  ]),
+                ],
               ),
-              onTap: () {
-                setState(() => _showFilePanel = !_showFilePanel);
-              },
             ),
-          ]),
-          const Spacer(),
+          ),
           PopupMenuButton(
             icon: Icon(Icons.more_vert, size: 18, color: fgColor),
             itemBuilder: (context) => <PopupMenuEntry<dynamic>>[

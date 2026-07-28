@@ -368,31 +368,34 @@ class _FileEntryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-        child: Row(
-          children: [
-            Icon(
-              entry.isDirectory ? Icons.folder_outlined : Icons.insert_drive_file_outlined,
-              size: 14,
-              color: entry.isDirectory ? const Color(0xFFC8A84E) : dim,
-            ),
-            const SizedBox(width: 4),
-            Expanded(
-              child: Text(
-                entry.name,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 12, color: fg),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          child: Row(
+            children: [
+              Icon(
+                entry.isDirectory ? Icons.folder_outlined : Icons.insert_drive_file_outlined,
+                size: 14,
+                color: entry.isDirectory ? const Color(0xFFC8A84E) : dim,
               ),
-            ),
-            if (!entry.isDirectory)
-              Text(
-                _formatSize(entry.length),
-                style: TextStyle(fontSize: 9, color: dim),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  entry.name,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 12, color: fg),
+                ),
               ),
-          ],
+              if (!entry.isDirectory)
+                Text(
+                  _formatSize(entry.length),
+                  style: TextStyle(fontSize: 9, color: dim),
+                ),
+            ],
+          ),
         ),
       ),
     );
