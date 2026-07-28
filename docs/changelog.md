@@ -4,6 +4,15 @@ All notable changes to the `atom_flt` project.
 
 ---
 
+## v1.0.14 — 28 Jul 2026
+
+### Fixed
+- **Gutter width too narrow:** `GutterStyle(width: 48)` was internally calculated as `48 - 16 - 16 = 16px` because the library subtracts disabled feature column widths. Changed to `width: 80` → effective 48px for line numbers
+- **Line number/scroll desync:** Added explicit `height: 1.5` to both gutter and code `textStyle` to ensure identical line heights between the Table-based gutter and TextField rendering
+- **Removed interfering padding/decoration:** Removed `padding: EdgeInsets.symmetric(horizontal: 16)` and custom `decoration` from CodeField that could interfere with internal scroll calculations
+
+---
+
 ## v1.0.13 (latest)
 
 ### Added
