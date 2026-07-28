@@ -9,6 +9,7 @@ class EditorController extends ChangeNotifier {
   final FileService _fileService = FileService();
 
   String? _filePath;
+  String? _fileUri;
   String _fileName = 'Untitled';
   bool _isModified = false;
   int _currentLine = 1;
@@ -25,7 +26,12 @@ class EditorController extends ChangeNotifier {
   }
 
   String? get filePath => _filePath;
+  String? get fileUri => _fileUri;
+  String? get currentFilePath => _filePath;
+  String? get currentFileName => _fileName;
   String get fileName => _fileName;
+  String get code => codeController.text;
+  set code(String value) => codeController.text = value;
   bool get isModified => _isModified;
   int get currentLine => _currentLine;
   int get currentColumn => _currentColumn;
@@ -51,6 +57,7 @@ class EditorController extends ChangeNotifier {
     codeController.language = null;
     codeController.addListener(_onCodeChanged);
     _filePath = null;
+    _fileUri = null;
     _fileName = 'Untitled';
     _isModified = false;
     _clearHighlight();
@@ -59,18 +66,20 @@ class EditorController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> openFile(String path) async {
-    final content = await _fileService.readFile(path);
+  Future<void> openFile({required String uri, String? filePath}) async {
+    final content = await _fileService.readFile(uri);
     codeController.removeListener(_onCodeChanged);
     codeController.text = content;
     codeController.addListener(_onCodeChanged);
-    _filePath = path;
-    _fileName = _fileService.getFileName(path);
+    _filePath = filePath ?? uri;
+    _fileUri = uri.startsWith('content://') ? uri : null;
+    _fileName = _fileService.getFileName(filePath ?? uri);
     _isModified = false;
     _clearHighlight();
     _undoCount = 0;
     _redoCount = 0;
 
+    final path = filePath ?? uri;
     final lang = SyntaxLanguage.detect(path);
     codeController.language = lang != null ? allLanguages[lang] : null;
 
@@ -78,7 +87,11 @@ class EditorController extends ChangeNotifier {
   }
 
   Future<void> saveFile() async {
-    if (_filePath != null) {
+    if (_fileUri != null) {
+      await _fileService.writeFile(_fileUri!, codeController.text);
+      _isModified = false;
+      notifyListeners();
+    } else if (_filePath != null) {
       await _fileService.writeFile(_filePath!, codeController.text);
       _isModified = false;
       notifyListeners();
@@ -88,6 +101,7 @@ class EditorController extends ChangeNotifier {
   Future<void> saveFileAs(String path) async {
     await _fileService.writeFile(path, codeController.text);
     _filePath = path;
+    _fileUri = null;
     _fileName = _fileService.getFileName(path);
     _isModified = false;
 
@@ -139,7 +153,6 @@ class EditorController extends ChangeNotifier {
   }
 
   void highlightWord(String? word) {
-    // ignore: invalid_use_of_internal_member
     final patternCtrl =
         codeController.searchController.settingsController.patternController;
     if (word == null || word.isEmpty) {
@@ -150,7 +163,6 @@ class EditorController extends ChangeNotifier {
   }
 
   void _clearHighlight() {
-    // ignore: invalid_use_of_internal_member
     codeController.searchController.settingsController.patternController.text =
         '';
   }

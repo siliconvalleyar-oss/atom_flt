@@ -1,15 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_code_editor/flutter_code_editor.dart';
-import 'package:highlight/languages/all.dart';
-import 'package:provider/provider.dart';
-import 'package:file_picker/file_picker.dart';
-import '../theme/theme_provider.dart';
-import '../services/file_browser_service.dart';
-import '../widgets/file_browser.dart';
-import '../widgets/status_bar.dart';
-import '../widgets/search_bar.dart';
-import '../samples/sample_code.dart';
+import 'package:flutter/services.dart';
+import '../services/file_service.dart';
+import '../services/config_service.dart';
+import '../widgets/file_panel.dart';
+import '../widgets/config_screen.dart';
 import 'editor_controller.dart';
+import 'package:file_picker/file_picker.dart';
 
 class EditorScreen extends StatefulWidget {
   const EditorScreen({super.key});
@@ -19,397 +15,549 @@ class EditorScreen extends StatefulWidget {
 }
 
 class _EditorScreenState extends State<EditorScreen> {
-  bool _showSearch = false;
-  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-  final FileBrowserService _fileBrowserService = FileBrowserService();
-  String? _rootTreeUri;
+  final EditorController _editor = EditorController();
+  final TextEditingController _searchController = TextEditingController();
+  final FileService _fileService = FileService();
+  bool _showFilePanel = true;
+  bool _isSearchVisible = false;
+  int _currentLine = 1;
+  int _currentCol = 1;
+  String _directoryPath = '';
+  String? _treeUri;
+  bool _configLoaded = false;
 
   @override
   void initState() {
     super.initState();
-    final editor = context.read<EditorController>();
-    editor.codeController.addListener(_onSelectionChanged);
+    _loadConfig();
   }
 
-  void _onSelectionChanged() {
-    final editor = context.read<EditorController>();
-    final selection = editor.codeController.selection;
-    if (!selection.isValid || !selection.isCollapsed) return;
-
-    if (selection.baseOffset >= 0) {
-      final text = editor.codeController.text;
-      final line = text.substring(0, selection.baseOffset).split('\n').length;
-      final lastNewline =
-          text.substring(0, selection.baseOffset).lastIndexOf('\n');
-      final col = selection.baseOffset - lastNewline;
-      editor.updateCursorPosition(line, col < 0 ? 1 : col + 1);
-
-      final word = editor.getWordAtCursor();
-      if (word != null && word.length >= 2) {
-        editor.highlightWord(word);
-      } else {
-        editor.highlightWord(null);
+  Future<void> _loadConfig() async {
+    final path = await ConfigService.getDefaultDirectory();
+    final treeUri = await ConfigService.getTreeUri();
+    setState(() {
+      _directoryPath = path;
+      _treeUri = treeUri;
+      _configLoaded = true;
+    });
+    if (path.isEmpty && treeUri == null && mounted) {
+      final onboardingDone = await ConfigService.isOnboardingDone();
+      if (!onboardingDone) {
+        _openConfig();
       }
     }
   }
 
-  Future<void> _openFile() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.any,
-    );
-    if (result != null && result.files.single.path != null) {
-      if (!mounted) return;
-      await context.read<EditorController>().openFile(
-            result.files.single.path!,
+  void _saveFile() async {
+    if (_editor.currentFilePath == null) return;
+
+    try {
+      if (_editor.fileUri != null) {
+        await _fileService.writeFile(
+          _editor.fileUri!,
+          _editor.code,
+        );
+      } else {
+        await _fileService.writeFile(
+          _editor.currentFilePath!,
+          _editor.code,
+        );
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Guardado correctamente'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 1),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al guardar: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _saveFileAs() async {
+    try {
+      final result = await FilePicker.platform.saveFile(
+        dialogTitle: 'Guardar como...',
+        fileName: _editor.currentFileName ?? 'untitled',
+        bytes: Uint8List.fromList(_editor.code.codeUnits),
+      );
+      if (result != null) {
+        _editor.saveFileAs(result);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al guardar como: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _openFile() async {
+    try {
+      final result = await FilePicker.platform.pickFiles();
+      if (result != null && result.files.isNotEmpty) {
+        final file = result.files.first;
+        if (file.identifier != null && file.identifier!.startsWith('content://')) {
+          await _editor.openFile(
+            uri: file.identifier!,
+            filePath: file.path,
           );
+        } else if (file.path != null) {
+          await _editor.openFile(uri: file.path!);
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al abrir archivo: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
-  Future<void> _openFolder() async {
-    final dir = await FilePicker.platform.getDirectoryPath();
-    if (dir == null || !mounted) return;
-
-    setState(() => _rootTreeUri = dir);
-    _scaffoldKey.currentState?.openDrawer();
+  void _newFile() {
+    _editor.newFile();
   }
 
-  Future<void> _saveFile() async {
-    final editor = context.read<EditorController>();
-    if (editor.filePath != null) {
-      await editor.saveFile();
-    } else {
-      await _saveFileAs();
-    }
-  }
-
-  Future<void> _saveFileAs() async {
-    final result = await FilePicker.platform.saveFile(
-      type: FileType.any,
-    );
-    if (result != null) {
-      if (!mounted) return;
-      await context.read<EditorController>().saveFileAs(result);
-    }
-  }
-
-  void _loadSample(String code, String lang, String filename) {
-    final editor = context.read<EditorController>();
-    editor.codeController.removeListener(_onSelectionChanged);
-    editor.codeController.text = code;
-    editor.codeController.language = allLanguages[lang];
-    editor.codeController.addListener(_onSelectionChanged);
-  }
-
-  void _loadSampleCpp() => _loadSample(SampleCode.cpp, 'cpp', 'sample.cpp');
-  void _loadSampleDart() => _loadSample(SampleCode.dart, 'dart', 'sample.dart');
-
-  void _selectFileFromBrowser(String uri) {
-    Navigator.pop(context);
-    context.read<EditorController>().openFile(uri);
-  }
-
-  @override
-  void dispose() {
-    final editor = context.read<EditorController>();
-    editor.codeController.removeListener(_onSelectionChanged);
-    super.dispose();
+  void _openConfig() {
+    showDialog(
+      context: context,
+      builder: (_) => const ConfigScreen(),
+    ).then((_) => _loadConfig());
   }
 
   @override
   Widget build(BuildContext context) {
-    final editor = context.watch<EditorController>();
-    final isDark = context.watch<ThemeProvider>().isDarkMode;
-
-    final drawerWidth = MediaQuery.of(context).size.width * 0.75;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+    final fgColor = isDark ? const Color(0xFFD4D4D4) : Colors.black87;
+    final topInset = MediaQuery.of(context).viewPadding.top;
+    final bottomInset = MediaQuery.of(context).viewPadding.bottom;
 
     return Scaffold(
-      key: _scaffoldKey,
-      drawer: Drawer(
-        width: drawerWidth.clamp(240.0, 360.0),
-        child: SafeArea(
-            child: _rootTreeUri != null
-                ? FileBrowser(
-                    service: _fileBrowserService,
-                    rootTreeUri: _rootTreeUri,
-                    onFileSelected: _selectFileFromBrowser,
-                  )
-                : EmptyFileBrowser(
-                    isDark: isDark,
-                    onSelectFolder: () {
-                      Navigator.pop(context);
-                      _openFolder();
+      backgroundColor: bgColor,
+      body: Column(
+        children: [
+          SizedBox(height: topInset),
+          _buildMenu(fgColor),
+          _isSearchVisible ? _buildSearchField(isDark, fgColor) : const SizedBox.shrink(),
+          Expanded(
+            child: Row(
+              children: [
+                if (_showFilePanel)
+                  FilePanel(
+                    directoryPath: _directoryPath,
+                    treeUri: _treeUri,
+                    onFileSelected: (uri) async {
+                      try {
+                        if (uri.startsWith('content://')) {
+                          await _editor.openFile(uri: uri);
+                        } else {
+                          await _editor.openFile(uri: uri);
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Error al abrir: $e'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                      }
                     },
+                    onConfig: _openConfig,
                   ),
+                _buildEditor(fgColor, isDark),
+              ],
+            ),
           ),
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildMenuBar(context, editor, isDark),
-            if (_showSearch)
-              SearchBarWidget(
-                codeController: editor.codeController,
-                onClose: () => setState(() => _showSearch = false),
-              ),
-            Expanded(child: _buildEditor(context, editor, isDark)),
-            const StatusBar(),
-          ],
-        ),
+          _buildStatusBar(fgColor),
+          SizedBox(height: bottomInset),
+        ],
       ),
     );
   }
 
-  Widget _buildMenuBar(
-      BuildContext context, EditorController editor, bool isDark) {
+  Widget _buildStatusBar(Color fgColor) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF252525) : const Color(0xFFF0F0F0),
-        border: Border(
-          bottom: BorderSide(
-            color: isDark ? const Color(0xFF333333) : const Color(0xFFE0E0E0),
-          ),
-        ),
-      ),
+      color: const Color(0xFF007ACC),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: Row(
         children: [
-          GestureDetector(
-            onTap: () => _scaffoldKey.currentState?.openDrawer(),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-              child: Icon(
-                Icons.folder_outlined,
-                size: 20,
-                color: isDark
-                    ? const Color(0xFFD4D4D4)
-                    : const Color(0xFF1E1E1E),
-              ),
-            ),
+          Text(
+            _editor.currentFilePath ?? 'Sin archivo',
+            style: TextStyle(color: Colors.white, fontSize: 12),
           ),
-          _menuButton('File', isDark, [
-            _MenuItem('New', 'Ctrl+N',
-                () => context.read<EditorController>().newFile()),
-            _MenuItem('Open...', 'Ctrl+O', _openFile),
-            _MenuItem('Save', 'Ctrl+S', _saveFile),
-            _MenuItem('Save As...', 'Ctrl+Shift+S', _saveFileAs),
-          ]),
-          _menuButton('Edit', isDark, [
-            _MenuItem('Undo', 'Ctrl+Z',
-                () => context.read<EditorController>().undo()),
-            _MenuItem('Redo', 'Ctrl+Y',
-                () => context.read<EditorController>().redo()),
-          ]),
-          _menuButton('View', isDark, [
-            _MenuItem('File Browser', 'Ctrl+B',
-                () => _scaffoldKey.currentState?.openDrawer()),
-            _MenuItem('Toggle Theme', 'Ctrl+T',
-                () => context.read<ThemeProvider>().toggleTheme()),
-          ]),
           const Spacer(),
           Text(
-            '${editor.fileName}${editor.isModified ? ' ●' : ''}',
-            style: TextStyle(
-              fontSize: 13,
-              color: isDark
-                  ? const Color(0xFF999999)
-                  : const Color(0xFF666666),
-            ),
+            'Ln ${_currentLine}, Col ${_currentCol}',
+            style: TextStyle(color: Colors.white, fontSize: 12),
           ),
-          const SizedBox(width: 4),
-          PopupMenuButton<_OverflowItem>(
-            icon: Icon(
-              Icons.more_vert,
-              size: 20,
-              color: isDark
-                  ? const Color(0xFF999999)
-                  : const Color(0xFF666666),
-            ),
-            itemBuilder: (_) => [
-              const PopupMenuItem<_OverflowItem>(
-                value: _OverflowItem('Abrir archivo...', null),
-                child: Row(
-                  children: [
-                    Icon(Icons.insert_drive_file, size: 18),
-                    SizedBox(width: 12),
-                    Text('Abrir archivo...'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem<_OverflowItem>(
-                value: _OverflowItem('Abrir carpeta...', null),
-                child: Row(
-                  children: [
-                    Icon(Icons.folder_open, size: 18),
-                    SizedBox(width: 12),
-                    Text('Abrir carpeta...'),
-                  ],
-                ),
-              ),
-              const PopupMenuDivider(),
-              const PopupMenuItem<_OverflowItem>(
-                value: _OverflowItem('Cargar ejemplo C++', null),
-                child: Row(
-                  children: [
-                    Icon(Icons.code, size: 18),
-                    SizedBox(width: 12),
-                    Text('Cargar ejemplo C++'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem<_OverflowItem>(
-                value: _OverflowItem('Cargar ejemplo Dart', null),
-                child: Row(
-                  children: [
-                    Icon(Icons.code, size: 18),
-                    SizedBox(width: 12),
-                    Text('Cargar ejemplo Dart'),
-                  ],
-                ),
-              ),
-            ],
-            onSelected: (item) {
-              switch (item.title) {
-                case 'Abrir archivo...':
-                  _openFile();
-                  break;
-                case 'Abrir carpeta...':
-                  _openFolder();
-                  break;
-                case 'Cargar ejemplo C++':
-                  _loadSampleCpp();
-                  break;
-                case 'Cargar ejemplo Dart':
-                  _loadSampleDart();
-                  break;
-              }
-            },
+          const SizedBox(width: 16),
+          Text(
+            'UTF-8',
+            style: TextStyle(color: Colors.white, fontSize: 12),
           ),
         ],
       ),
     );
   }
 
-  Widget _menuButton(
-      String title, bool isDark, List<_MenuItem> items) {
-    return PopupMenuButton<_MenuItem>(
-      onSelected: (item) => item.action(),
-      itemBuilder: (_) => items.map((item) {
-        return PopupMenuItem<_MenuItem>(
-          value: item,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(item.title),
-              const SizedBox(width: 24),
-              Text(
-                item.shortcut,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: isDark
-                      ? const Color(0xFF666666)
-                      : const Color(0xFF999999),
+  Widget _buildEditor(Color fgColor, bool isDark) {
+    return Expanded(
+      child: _editor.code.isEmpty && _editor.currentFilePath == null
+          ? _buildWelcomeScreen(isDark)
+          : _buildCodeEditor(fgColor, isDark),
+    );
+  }
+
+  Widget _buildWelcomeScreen(bool isDark) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxHeight < 300;
+        return Center(
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.code,
+                  size: compact ? 40 : 64,
+                  color: isDark ? Colors.white24 : Colors.black12,
                 ),
+                SizedBox(height: compact ? 12 : 24),
+                Text(
+                  'atom',
+                  style: TextStyle(
+                    fontSize: compact ? 24 : 32,
+                    fontWeight: FontWeight.w300,
+                    color: isDark ? Colors.white38 : Colors.black26,
+                  ),
+                ),
+                SizedBox(height: compact ? 4 : 8),
+                Text(
+                  'Flutter Code Editor',
+                  style: TextStyle(
+                    fontSize: compact ? 12 : 14,
+                    color: isDark ? Colors.white24 : Colors.black12,
+                  ),
+                ),
+                SizedBox(height: compact ? 16 : 32),
+                Text(
+                  'Ctrl+N  Nuevo archivo\nCtrl+O  Abrir archivo\nCtrl+S  Guardar\nCtrl+B  Panel de archivos\nCtrl+F  Buscar',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: compact ? 10 : 12,
+                    color: isDark ? Colors.white38 : Colors.black38,
+                    height: 1.6,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildCodeEditor(Color fgColor, bool isDark) {
+    return KeyboardListener(
+      focusNode: FocusNode(),
+      onKeyEvent: (event) {
+        if (event is KeyDownEvent || event is KeyRepeatEvent) {
+          final ctrl = HardwareKeyboard.instance.isControlPressed;
+          final shift = HardwareKeyboard.instance.isShiftPressed;
+          if (ctrl && event.logicalKey == LogicalKeyboardKey.keyS) {
+            if (shift) {
+              _saveFileAs();
+            } else {
+              _saveFile();
+            }
+          } else if (ctrl && event.logicalKey == LogicalKeyboardKey.keyO) {
+            _openFile();
+          } else if (ctrl && event.logicalKey == LogicalKeyboardKey.keyN) {
+            _newFile();
+          } else if (ctrl && event.logicalKey == LogicalKeyboardKey.keyB) {
+            setState(() => _showFilePanel = !_showFilePanel);
+          } else if (ctrl && event.logicalKey == LogicalKeyboardKey.keyF) {
+            setState(() => _isSearchVisible = !_isSearchVisible);
+          }
+        }
+      },
+      child: Column(
+        children: [
+          if (_isSearchVisible) _buildSearchField(isDark, fgColor),
+          Expanded(
+            child: Container(
+              color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+              child: Row(
+                children: [
+                  _buildLineNumbers(fgColor),
+                  Expanded(
+                    child: TextField(
+                      controller: _editor.codeController,
+                      onChanged: (value) {
+                        _editor.code = value;
+                        _updateCursorInfo();
+                      },
+                      onTap: _updateCursorInfo,
+                      maxLines: null,
+                      expands: true,
+                      textAlignVertical: TextAlignVertical.top,
+                      keyboardType: TextInputType.multiline,
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 14,
+                        color: fgColor,
+                        fontWeight: FontWeight.w400,
+                      ),
+                      decoration: InputDecoration(
+                        border: InputBorder.none,
+                        hintText: 'Escribe tu código aquí...',
+                        contentPadding: const EdgeInsets.all(16),
+                        hintStyle: TextStyle(
+                          color: isDark ? Colors.white24 : Colors.black12,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLineNumbers(Color fgColor) {
+    final lineCount = _editor.code.split('\n').length;
+    return Container(
+      width: 48,
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+      decoration: BoxDecoration(
+        border: Border(
+          right: BorderSide(
+            color: fgColor.withOpacity(0.1),
+            width: 1,
+          ),
+        ),
+      ),
+      child: ListView.builder(
+        itemCount: lineCount,
+        itemBuilder: (context, index) {
+          return Text(
+            '${index + 1}',
+            style: TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 14,
+              color: fgColor.withOpacity(0.3),
+            ),
+            textAlign: TextAlign.right,
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildMenu(Color fgColor) {
+    return Container(
+      height: 32,
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(
+            color: fgColor.withOpacity(0.1),
+            width: 1,
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          const SizedBox(width: 8),
+          Text(
+            'atom',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: const Color(0xFF007ACC),
+            ),
+          ),
+          const SizedBox(width: 16),
+          _buildMenuItem('Archivo', [
+            PopupMenuItem(
+              child: _menuItemContent(Icons.add, 'Nuevo', 'Ctrl+N'),
+              onTap: _newFile,
+            ),
+            PopupMenuItem(
+              child: _menuItemContent(Icons.open_in_new, 'Abrir...', 'Ctrl+O'),
+              onTap: _openFile,
+            ),
+            const PopupMenuDivider(),
+            PopupMenuItem(
+              child: _menuItemContent(Icons.save, 'Guardar', 'Ctrl+S'),
+              onTap: _saveFile,
+            ),
+            PopupMenuItem(
+              child: _menuItemContent(Icons.save_as, 'Guardar como...', 'Ctrl+Shift+S'),
+              onTap: _saveFileAs,
+            ),
+          ]),
+          _buildMenuItem('Edición', [
+            PopupMenuItem(
+              child: _menuItemContent(Icons.search, 'Buscar', 'Ctrl+F'),
+              onTap: () {
+                setState(() => _isSearchVisible = !_isSearchVisible);
+              },
+            ),
+            PopupMenuItem(
+              child: _menuItemContent(Icons.find_replace, 'Reemplazar'),
+              onTap: () {},
+            ),
+          ]),
+          _buildMenuItem('Ver', [
+            PopupMenuItem(
+              child: _menuItemContent(
+                _showFilePanel ? Icons.check_box : Icons.check_box_outline_blank,
+                'Panel de archivos',
+                'Ctrl+B',
+              ),
+              onTap: () {
+                setState(() => _showFilePanel = !_showFilePanel);
+              },
+            ),
+          ]),
+          const Spacer(),
+          PopupMenuButton(
+            icon: Icon(Icons.more_vert, size: 18, color: fgColor),
+            itemBuilder: (context) => <PopupMenuEntry<dynamic>>[
+              PopupMenuItem(
+                child: _menuItemContent(Icons.folder_open, 'Abrir carpeta'),
+                onTap: _openConfig,
+              ),
+              const PopupMenuDivider(),
+              PopupMenuItem(
+                child: _menuItemContent(Icons.refresh, 'Recargar'),
+                onTap: () {},
               ),
             ],
           ),
-        );
-      }).toList(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMenuItem(String label, List<PopupMenuEntry<dynamic>> items) {
+    return PopupMenuButton(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-        child: Text(
-          title,
-          style: TextStyle(
-            fontSize: 13,
-            color: isDark
-                ? const Color(0xFFD4D4D4)
-                : const Color(0xFF1E1E1E),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Text(label, style: TextStyle(fontSize: 13, color: Colors.grey[700])),
+      ),
+      itemBuilder: (_) => items,
+    );
+  }
+
+  Widget _buildSearchField(bool isDark, Color fgColor) {
+    return Container(
+      color: isDark ? const Color(0xFF252526) : const Color(0xFFF3F3F3),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Buscar...',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(4),
+                  borderSide: BorderSide.none,
+                ),
+                filled: true,
+                fillColor: isDark ? const Color(0xFF3C3C3C) : Colors.white,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                suffixIcon: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.arrow_upward, size: 16),
+                      onPressed: () {},
+                      padding: const EdgeInsets.all(4),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.arrow_downward, size: 16),
+                      onPressed: () {},
+                      padding: const EdgeInsets.all(4),
+                    ),
+                  ],
+                ),
+              ),
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 13,
+                color: fgColor,
+              ),
+            ),
           ),
-        ),
+          const SizedBox(width: 8),
+          IconButton(
+            icon: const Icon(Icons.close, size: 16),
+            onPressed: () {
+              setState(() => _isSearchVisible = false);
+              _searchController.clear();
+            },
+            padding: const EdgeInsets.all(4),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildEditor(
-      BuildContext context, EditorController editor, bool isDark) {
-    return CodeTheme(
-      data: CodeThemeData(
-        styles: isDark ? _oneDarkStyles : _githubLightStyles,
-      ),
-      child: CodeField(
-        expands: true,
-        wrap: true,
-        controller: editor.codeController,
-        textStyle: TextStyle(
-          fontFamily: 'monospace',
-          fontSize: 14,
-          height: 1.5,
-          color: isDark
-              ? const Color(0xFFD4D4D4)
-              : const Color(0xFF1E1E1E),
-        ),
-        gutterStyle: GutterStyle(
-          showLineNumbers: true,
-          showErrors: false,
-          showFoldingHandles: false,
-          margin: 4,
-          textStyle: TextStyle(
-            fontFamily: 'monospace',
-            fontSize: 12,
-            color: isDark
-                ? const Color(0xFF666666)
-                : const Color(0xFF999999),
+  void _updateCursorInfo() {
+    final text = _editor.codeController.text;
+    final selection = _editor.codeController.selection;
+    if (!selection.isValid) return;
+
+    final textBeforeCursor = text.substring(0, selection.start);
+    final lines = textBeforeCursor.split('\n');
+    setState(() {
+      _currentLine = lines.length;
+      _currentCol = lines.last.length + 1;
+    });
+  }
+
+  Widget _menuItemContent(IconData icon, String text, [String? shortcut]) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: Colors.grey[600]),
+        const SizedBox(width: 8),
+        Expanded(child: Text(text)),
+        if (shortcut != null)
+          Text(
+            shortcut,
+            style: TextStyle(
+              fontSize: 11,
+              color: Colors.grey[400],
+            ),
           ),
-          background: isDark
-              ? const Color(0xFF1E1E1E)
-              : const Color(0xFFFAFAFA),
-        ),
-        background: isDark
-            ? const Color(0xFF121212)
-            : const Color(0xFFFFFFFF),
-      ),
+      ],
     );
   }
 }
-
-class _MenuItem {
-  final String title;
-  final String shortcut;
-  final VoidCallback action;
-  _MenuItem(this.title, this.shortcut, this.action);
-}
-
-class _OverflowItem {
-  final String title;
-  final VoidCallback? action;
-  const _OverflowItem(this.title, this.action);
-}
-
-Map<String, TextStyle> get _oneDarkStyles => {
-      'root': const TextStyle(color: Color(0xFFABB2BF)),
-      'keyword': const TextStyle(color: Color(0xFFC678DD)),
-      'string': const TextStyle(color: Color(0xFF98C379)),
-      'comment': TextStyle(
-        color: const Color(0xFF5C6370),
-        fontStyle: FontStyle.italic,
-      ),
-      'function': const TextStyle(color: Color(0xFF61AFEF)),
-      'number': const TextStyle(color: Color(0xFFD19A66)),
-      'type': const TextStyle(color: Color(0xFFE5C07B)),
-      'built_in': const TextStyle(color: Color(0xFF56B6C2)),
-      'attr': const TextStyle(color: Color(0xFFE06C75)),
-    };
-
-Map<String, TextStyle> get _githubLightStyles => {
-      'root': const TextStyle(color: Color(0xFF24292E)),
-      'keyword': const TextStyle(color: Color(0xFFD73A49)),
-      'string': const TextStyle(color: Color(0xFF032F62)),
-      'comment': TextStyle(
-        color: const Color(0xFF6A737D),
-        fontStyle: FontStyle.italic,
-      ),
-      'function': const TextStyle(color: Color(0xFF6F42C1)),
-      'number': const TextStyle(color: Color(0xFF005CC5)),
-      'type': const TextStyle(color: Color(0xFF22863A)),
-      'built_in': const TextStyle(color: Color(0xFF005CC5)),
-      'attr': const TextStyle(color: Color(0xFFD73A49)),
-    };
