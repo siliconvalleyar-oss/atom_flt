@@ -88,6 +88,22 @@ void newFile()               // Resets controller, uses _suppressNotifications
 
 **Important:** `_suppressNotifications` flag replaces `removeListener`/`addListener` pattern to avoid RangeError with CodeController.
 
+### 4.3 Gutter width gotcha (flutter_code_editor internal)
+
+The library calculates gutter width by **subtracting** disabled feature columns:
+```dart
+// Inside gutter.dart:
+gutterWidth = style.width -
+    (showErrors ? 0 : 16) -        // always subtracted when disabled
+    (showFoldingHandles ? 0 : 16);  // always subtracted when disabled
+```
+So `GutterStyle(width: 48)` with both disabled = only **16px** (clips all multi-digit line numbers).
+**Use `width: 80`** to get effective 48px for line numbers.
+
+### 4.4 Scroll sync (line numbers ↔ code)
+
+Line heights MUST match between gutter `Table` and `TextField`. Set explicit `height: 1.5` on both `textStyle` props. Do NOT pass `padding` or `decoration` to CodeField — they interfere with internal `LinkedScrollControllerGroup` calculations.
+
 ---
 
 ## 4. EDITOR SYSTEM
@@ -378,6 +394,6 @@ Skills:         .agents/skills/
 
 ---
 
-*Skill version: 1.1 — Updated 28 July 2026*
-*Last tag: v1.0.12*
+*Skill version: 1.2 — Updated 28 July 2026*
+*Last tag: v1.1.0*
 *Load with: `skill tool name: atom_flt_codebase`*

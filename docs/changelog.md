@@ -4,6 +4,18 @@ All notable changes to the `atom_flt` project.
 
 ---
 
+## v1.1.0 — 28 Jul 2026
+
+### Fixed
+- **Gutter width (line numbers clipped):** Library internally subtracts 32px for disabled features. `GutterStyle(width: 48)` → only 16px effective. Changed to `width: 80` → 48px effective
+- **Line number/scroll desync:** Added `height: 1.5` to gutter and code `textStyle` for identical line heights
+- **Removed CodeField `padding`/`decoration`:** These interfered with internal `LinkedScrollControllerGroup` scroll calculations
+
+### Changed
+- Version bumped to 1.1.0 (major UI stability milestone)
+
+---
+
 ## v1.0.14 — 28 Jul 2026
 
 ### Fixed
