@@ -177,9 +177,13 @@ class FileBrowserService {
   String getDisplayPath(String uri) {
     if (uri.startsWith('content://')) {
       final documentIdx = uri.indexOf('/document/');
-      if (documentIdx < 0) return uri.split('/').last;
+      if (documentIdx < 0) {
+        final raw = uri.split('/').last;
+        return Uri.decodeComponent(raw);
+      }
       final docPart = uri.substring(documentIdx + '/document/'.length);
-      return docPart.split('%2F').last;
+      final raw = docPart.split('%2F').last;
+      return Uri.decodeComponent(raw);
     }
     return uri.split(Platform.pathSeparator).last;
   }

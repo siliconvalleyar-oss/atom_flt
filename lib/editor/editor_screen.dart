@@ -20,6 +20,7 @@ class _EditorScreenState extends State<EditorScreen> {
   final TextEditingController _searchController = TextEditingController();
   final FileService _fileService = FileService();
   final FileBrowserService _browserService = FileBrowserService();
+  final ScrollController _lineScrollController = ScrollController();
   bool _showFilePanel = true;
   bool _isSearchVisible = false;
   int _currentLine = 1;
@@ -43,6 +44,7 @@ class _EditorScreenState extends State<EditorScreen> {
   void dispose() {
     _editor.removeListener(_onEditorUpdate);
     _searchController.dispose();
+    _lineScrollController.dispose();
     super.dispose();
   }
 
@@ -327,38 +329,46 @@ class _EditorScreenState extends State<EditorScreen> {
           Expanded(
             child: Container(
               color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-              child: Row(
-                children: [
-                  _buildLineNumbers(fgColor),
-                  Expanded(
-                    child: TextField(
-                      controller: _editor.codeController,
-                      onChanged: (value) {
-                        _editor.code = value;
-                        _updateCursorInfo();
-                      },
-                      onTap: _updateCursorInfo,
-                      maxLines: null,
-                      expands: true,
-                      textAlignVertical: TextAlignVertical.top,
-                      keyboardType: TextInputType.multiline,
-                      style: TextStyle(
-                        fontFamily: 'monospace',
-                        fontSize: 14,
-                        color: fgColor,
-                        fontWeight: FontWeight.w400,
-                      ),
-                      decoration: InputDecoration(
-                        border: InputBorder.none,
-                        hintText: 'Escribe tu código aquí...',
-                        contentPadding: const EdgeInsets.all(16),
-                        hintStyle: TextStyle(
-                          color: isDark ? Colors.white24 : Colors.black12,
+              child: NotificationListener<ScrollNotification>(
+                onNotification: (notification) {
+                  if (_lineScrollController.hasClients) {
+                    _lineScrollController.jumpTo(notification.metrics.pixels);
+                  }
+                  return false;
+                },
+                child: Row(
+                  children: [
+                    _buildLineNumbers(fgColor),
+                    Expanded(
+                      child: TextField(
+                        controller: _editor.codeController,
+                        onChanged: (value) {
+                          _editor.code = value;
+                          _updateCursorInfo();
+                        },
+                        onTap: _updateCursorInfo,
+                        maxLines: null,
+                        expands: true,
+                        textAlignVertical: TextAlignVertical.top,
+                        keyboardType: TextInputType.multiline,
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          fontSize: 14,
+                          color: fgColor,
+                          fontWeight: FontWeight.w400,
+                        ),
+                        decoration: InputDecoration(
+                          border: InputBorder.none,
+                          hintText: 'Escribe tu código aquí...',
+                          contentPadding: const EdgeInsets.all(16),
+                          hintStyle: TextStyle(
+                            color: isDark ? Colors.white24 : Colors.black12,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -381,6 +391,8 @@ class _EditorScreenState extends State<EditorScreen> {
         ),
       ),
       child: ListView.builder(
+        controller: _lineScrollController,
+        physics: const NeverScrollableScrollPhysics(),
         itemCount: lineCount,
         itemBuilder: (context, index) {
           return Text(
@@ -411,12 +423,15 @@ class _EditorScreenState extends State<EditorScreen> {
       child: Row(
         children: [
           const SizedBox(width: 8),
-          Text(
-            'atom',
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF007ACC),
+          GestureDetector(
+            onTap: () => setState(() => _showFilePanel = !_showFilePanel),
+            child: const Text(
+              'atom',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF007ACC),
+              ),
             ),
           ),
           const SizedBox(width: 8),
@@ -454,18 +469,6 @@ class _EditorScreenState extends State<EditorScreen> {
                     PopupMenuItem(
                       child: _menuItemContent(Icons.find_replace, 'Reemplazar'),
                       onTap: () {},
-                    ),
-                  ]),
-                  _buildMenuItem('Ver', [
-                    PopupMenuItem(
-                      child: _menuItemContent(
-                        _showFilePanel ? Icons.check_box : Icons.check_box_outline_blank,
-                        'Panel de archivos',
-                        'Ctrl+B',
-                      ),
-                      onTap: () {
-                        setState(() => _showFilePanel = !_showFilePanel);
-                      },
                     ),
                   ]),
                 ],
