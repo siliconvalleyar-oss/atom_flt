@@ -3,13 +3,13 @@ import '../services/file_browser_service.dart';
 
 class FileBrowser extends StatefulWidget {
   final FileBrowserService service;
-  final String? rootTreeUri;
+  final String rootTreeUri;
   final ValueChanged<String> onFileSelected;
 
   const FileBrowser({
     super.key,
     required this.service,
-    this.rootTreeUri,
+    required this.rootTreeUri,
     required this.onFileSelected,
   });
 
@@ -18,53 +18,55 @@ class FileBrowser extends StatefulWidget {
 }
 
 class _FileBrowserState extends State<FileBrowser> {
-  String? _currentUri;
   List<FileEntry> _entries = [];
-  bool _loading = false;
+  bool _loading = true;
   String? _error;
 
   @override
   void initState() {
     super.initState();
-    if (widget.rootTreeUri != null) {
-      _currentUri = widget.rootTreeUri;
-      _loadDirectory();
-    }
+    widget.service.ping().then((r) {
+      debugPrint('[FileBrowser] ping response: $r');
+    }).catchError((e) {
+      debugPrint('[FileBrowser] ping error: $e');
+    });
+    _openFolder();
   }
 
   @override
   void didUpdateWidget(FileBrowser oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.rootTreeUri != widget.rootTreeUri) {
-      _currentUri = widget.rootTreeUri;
-      if (_currentUri != null) {
-        _loadDirectory();
-      } else {
-        setState(() {
-          _entries = [];
-          _error = null;
-        });
-      }
+      _openFolder();
     }
   }
 
-  Future<void> _loadDirectory() async {
-    if (_currentUri == null) return;
+  Future<void> _openFolder() async {
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      final entries = await widget.service.listDirectory(_currentUri!);
+      await widget.service.openFolder(widget.rootTreeUri);
+      await _load();
+    } catch (e) {
       if (!mounted) return;
-      entries.sort((a, b) {
-        if (a.isDirectory && !b.isDirectory) return -1;
-        if (!a.isDirectory && b.isDirectory) return 1;
-        return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+      setState(() {
+        _error = e.toString();
+        _loading = false;
       });
+    }
+  }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    try {
+      final entries = await widget.service.listDirectory();
+      if (!mounted) return;
       setState(() {
         _entries = entries;
         _loading = false;
+        _error = null;
       });
     } catch (e) {
       if (!mounted) return;
@@ -75,22 +77,15 @@ class _FileBrowserState extends State<FileBrowser> {
     }
   }
 
-  void _navigateTo(String uri) {
-    _currentUri = uri;
-    _loadDirectory();
+  Future<void> _navigateTo(String docId) async {
+    await widget.service.navigateTo(docId);
+    await _load();
   }
 
-  void _goUp() {
-    if (_currentUri == null) return;
-    final treeUri = widget.rootTreeUri;
-    if (treeUri == null) return;
-    final parent = widget.service.getParentUri(_currentUri!, treeUri);
-    if (parent != _currentUri) _navigateTo(parent);
-  }
-
-  bool get _canGoUp {
-    if (_currentUri == null || widget.rootTreeUri == null) return false;
-    return _currentUri != widget.rootTreeUri;
+  Future<void> _goUp() async {
+    if (!widget.service.canGoUp) return;
+    await widget.service.goUp();
+    await _load();
   }
 
   @override
@@ -104,7 +99,7 @@ class _FileBrowserState extends State<FileBrowser> {
       color: bg,
       child: Column(
         children: [
-          _buildHeader(borderColor, fg, isDark, bg),
+          _buildHeader(fg, borderColor),
           Divider(height: 1, color: borderColor),
           Expanded(child: _buildBody(fg, borderColor, isDark)),
         ],
@@ -112,15 +107,16 @@ class _FileBrowserState extends State<FileBrowser> {
     );
   }
 
-  Widget _buildHeader(Color borderColor, Color fg, bool isDark, Color bg) {
-    final currentName = _currentUri != null
-        ? widget.service.getDisplayPath(_currentUri!)
+  Widget _buildHeader(Color fg, Color borderColor) {
+    final name = widget.service.currentDisplayName.isNotEmpty
+        ? widget.service.currentDisplayName
         : 'Explorador';
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       child: Row(
         children: [
-          if (_canGoUp)
+          if (widget.service.canGoUp)
             GestureDetector(
               onTap: _goUp,
               child: Padding(
@@ -129,17 +125,14 @@ class _FileBrowserState extends State<FileBrowser> {
               ),
             ),
           Expanded(
-            child: GestureDetector(
-              onTap: _reload,
-              child: Text(
-                currentName,
-                style: TextStyle(fontSize: 13, color: fg),
-                overflow: TextOverflow.ellipsis,
-              ),
+            child: Text(
+              name,
+              style: TextStyle(fontSize: 13, color: fg),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
           GestureDetector(
-            onTap: _reload,
+            onTap: _load,
             child: Padding(
               padding: const EdgeInsets.only(left: 8),
               child: Icon(Icons.refresh, size: 16, color: fg),
@@ -149,8 +142,6 @@ class _FileBrowserState extends State<FileBrowser> {
       ),
     );
   }
-
-  void _reload() => _loadDirectory();
 
   Widget _buildBody(Color fg, Color borderColor, bool isDark) {
     if (_loading) {
@@ -188,7 +179,7 @@ class _FileBrowserState extends State<FileBrowser> {
               ),
               const SizedBox(height: 12),
               GestureDetector(
-                onTap: _reload,
+                onTap: _load,
                 child: Icon(Icons.refresh, size: 24, color: fg),
               ),
             ],
@@ -199,11 +190,31 @@ class _FileBrowserState extends State<FileBrowser> {
 
     if (_entries.isEmpty) {
       return Center(
-        child: Text(
-          'Carpeta vacía',
-          style: TextStyle(
-            fontSize: 13,
-            color: isDark ? Color(0xFF666666) : Color(0xFF999999),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.folder_open, size: 40,
+                  color: isDark ? Color(0xFF666666) : Color(0xFF999999)),
+              const SizedBox(height: 12),
+              Text(
+                'Carpeta vacía',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: isDark ? Color(0xFF999999) : Color(0xFF666666),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'La carpeta no contiene archivos\naccesibles o no se pudieron listar',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: isDark ? Color(0xFF666666) : Color(0xFF999999),
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
           ),
         ),
       );
@@ -211,11 +222,11 @@ class _FileBrowserState extends State<FileBrowser> {
 
     return ListView.builder(
       itemCount: _entries.length,
-      itemBuilder: (_, i) => _buildEntry(_entries[i], fg, borderColor),
+      itemBuilder: (_, i) => _buildEntry(_entries[i], fg),
     );
   }
 
-  Widget _buildEntry(FileEntry entry, Color fg, Color borderColor) {
+  Widget _buildEntry(FileEntry entry, Color fg) {
     final isDir = entry.isDirectory;
     final icon = isDir ? Icons.folder : Icons.insert_drive_file;
     final iconColor = isDir ? Colors.amber[300] : null;
@@ -225,7 +236,7 @@ class _FileBrowserState extends State<FileBrowser> {
       child: InkWell(
         onTap: () {
           if (isDir) {
-            _navigateTo(entry.uri);
+            _navigateTo(entry.docId);
           } else {
             widget.onFileSelected(entry.uri);
           }

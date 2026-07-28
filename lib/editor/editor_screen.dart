@@ -148,50 +148,48 @@ class _EditorScreenState extends State<EditorScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = isDark ? const Color(0xFF1E1E1E) : Colors.white;
     final fgColor = isDark ? const Color(0xFFD4D4D4) : Colors.black87;
-    final topInset = MediaQuery.of(context).viewPadding.top;
-    final bottomInset = MediaQuery.of(context).viewPadding.bottom;
 
     return Scaffold(
       backgroundColor: bgColor,
-      body: Column(
-        children: [
-          SizedBox(height: topInset),
-          _buildMenu(fgColor),
-          _isSearchVisible ? _buildSearchField(isDark, fgColor) : const SizedBox.shrink(),
-          Expanded(
-            child: Row(
-              children: [
-                if (_showFilePanel)
-                  FilePanel(
-                    directoryPath: _directoryPath,
-                    treeUri: _treeUri,
-                    onFileSelected: (uri) async {
-                      try {
-                        if (uri.startsWith('content://')) {
-                          await _editor.openFile(uri: uri);
-                        } else {
-                          await _editor.openFile(uri: uri);
+      body: SafeArea(
+        child: Column(
+          children: [
+            _buildMenu(fgColor),
+            _isSearchVisible ? _buildSearchField(isDark, fgColor) : const SizedBox.shrink(),
+            Expanded(
+              child: Row(
+                children: [
+                  if (_showFilePanel)
+                    FilePanel(
+                      directoryPath: _directoryPath,
+                      treeUri: _treeUri,
+                      onFileSelected: (uri) async {
+                        try {
+                          if (uri.startsWith('content://')) {
+                            await _editor.openFile(uri: uri);
+                          } else {
+                            await _editor.openFile(uri: uri);
+                          }
+                        } catch (e) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Error al abrir: $e'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
                         }
-                      } catch (e) {
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Error al abrir: $e'),
-                              backgroundColor: Colors.red,
-                            ),
-                          );
-                        }
-                      }
-                    },
-                    onConfig: _openConfig,
-                  ),
-                _buildEditor(fgColor, isDark),
-              ],
+                      },
+                      onConfig: _openConfig,
+                    ),
+                  _buildEditor(fgColor, isDark),
+                ],
+              ),
             ),
-          ),
-          _buildStatusBar(fgColor),
-          SizedBox(height: bottomInset),
-        ],
+            _buildStatusBar(fgColor),
+          ],
+        ),
       ),
     );
   }
